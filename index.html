@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>内灘町 公衆トイレマップ</title>
+  <link rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>body{margin:0} #map{width:100vw;height:100vh}</style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.5.3/papaparse.min.js"></script>
+  <script>
+    const map = L.map('map').setView([36.657,136.648],13);
+    L.tileLayer('https://tile.openstreetmap.jp/{z}/{x}/{y}.png',{
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'
+    }).addTo(map);
+
+    // 外部データをHTMLへ入れる前に、危険な記号を無害化する
+    const escapeHtml = value => String(value ?? '')
+      .replaceAll('&','&amp;').replaceAll('<','&lt;')
+      .replaceAll('>','&gt;').replaceAll('"','&quot;')
+      .replaceAll("'",'&#039;');
+
+    fetch('./toilet_uchinada.csv')
+      .then(response => {
+        if (!response.ok) throw new Error('CSVを取得できません');
+        return response.text();
+      })
+      .then(text => {
+        const result = Papa.parse(text,{header:true,skipEmptyLines:true});
+        const markers = [];
+
+        result.data.forEach(row => {
+          const lat = Number(row['緯度']);
+          const lng = Number(row['経度']);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+          const popup = `
+            <b style="color:#196DAC;font-size:1.1em">
+              ${escapeHtml(row['名称'])}
+            </b><hr>
+            男性用：${escapeHtml(row['男性トイレ総数'])}基 / 
+            女性用：${escapeHtml(row['女性トイレ総数'])}基<br>
+            バリアフリー：${escapeHtml(row['バリアフリートイレ数'])}基<br>
+            車椅子対応：${escapeHtml(row['車椅子使用者用トイレ有無'])}<br>
+            ${escapeHtml(row['利用可能時間特記事項'])}`;
+
+          markers.push(L.marker([lat,lng]).addTo(map).bindPopup(popup));
+        });
+
+        if (markers.length) {
+          map.fitBounds(L.featureGroup(markers).getBounds(),{padding:[25,25]});
+        }
+      })
+      .catch(error => {
+        console.error(error);
+        alert('CSVの読み込みに失敗しました。ファイル名と配置を確認してください。');
+      });
+  </script>
+</body>
+</html>
